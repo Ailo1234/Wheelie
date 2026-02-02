@@ -1,312 +1,117 @@
-<!DOCTYPE html>
-<html lang="no">
-<head>
-  <meta charset="UTF-8" />
-  <title>Elsparkesykkel Wheelie-spill</title>
-  <style>
-    body {
-      margin: 0;
-      background: #222;
-      color: #eee;
-      font-family: sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      user-select: none;
-      -webkit-user-select: none;
-    }
-    canvas {
-      background: linear-gradient(#87ceeb 0 60%, #444 60% 100%);
-      border: 2px solid #555;
-      margin-top: 10px;
-      touch-action: none;
-    }
-    #info {
-      margin-top: 10px;
-      text-align: center;
-      line-height: 1.4;
-    }
-    .highlight {
-      color: #ffd54f;
-      font-weight: bold;
-    }
-    #buttons {
-      margin-top: 15px;
-      display: flex;
-      gap: 15px;
-    }
-    .btn {
-      background: #555;
-      color: white;
-      padding: 18px 28px;
-      font-size: 22px;
-      border-radius: 12px;
-      border: 2px solid #888;
-      text-align: center;
-      width: 150px;
-      touch-action: manipulation;
-    }
-    .btn:active {
-      background: #777;
-      transform: scale(0.97);
-    }
-  </style>
-</head>
-<body>
-  <h1>Elsparkesykkel Wheelie</h1>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
 
-  <div id="info">
-    <div><span class="highlight">Mål:</span> Gjør en så lang wheelie som mulig!</div>
-    <div><span class="highlight">Styring:</span> Bruk knappene under</div>
-    <div>Wheelie-lengde: <span id="current">0.00</span> m &nbsp;|&nbsp; Rekord: <span id="best">0.00</span> m</div>
-    <div>Stilpoeng: <span id="style">0</span></div>
-    <div id="status"></div>
-  </div>
+// "Fysikk"
+let angle = -0.2;        // vinkel på sparkesykkelen (negativ = litt opp)
+let angularVelocity = 0; // hvor fort vinkelen endrer seg
+let gravity = 0.0015;    // "tyngdekraft" som drar fronten ned
+let controlForce = 0.003;// hvor mye spilleren kan påvirke
+let isUpPressed = false;
+let isDownPressed = false;
 
-  <canvas id="game" width="900" height="400"></canvas>
+let distance = 0;
+let gameOver = false;
 
-  <div id="buttons">
-    <div class="btn" id="btnD">DRA OPP</div>
-    <div class="btn" id="btnA">BREMS</div>
-    <div class="btn" id="btnW">1 FOT</div>
-  </div>
+document.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowUp" || e.key === "w") isUpPressed = true;
+  if (e.key === "ArrowDown" || e.key === "s") isDownPressed = true;
+});
 
-  <script>
-    const canvas = document.getElementById("game");
-    const ctx = canvas.getContext("2d");
+document.addEventListener("keyup", (e) => {
+  if (e.key === "ArrowUp" || e.key === "w") isUpPressed = false;
+  if (e.key === "ArrowDown" || e.key === "s") isDownPressed = false;
+});
 
-    const currentEl = document.getElementById("current");
-    const bestEl = document.getElementById("best");
-    const styleEl = document.getElementById("style");
-    const statusEl = document.getElementById("status");
+function update(dt) {
+  if (gameOver) return;
 
-    const groundY = canvas.height * 0.65;
-    const wheelRadius = 18;
-    const scooterLength = 120;
+  // Tyngdekraft drar fronten ned (vinkelen mot 0 og videre)
+  angularVelocity += gravity * dt;
 
-    let baseX = 200;
-    let baseY = groundY - wheelRadius;
+  // Spillerkontroll
+  if (isUpPressed) {
+    angularVelocity -= controlForce * dt;
+  }
+  if (isDownPressed) {
+    angularVelocity += controlForce * dt;
+  }
 
-    let angle = 0;
-    let angularVelocity = 0;
-    let angularAcceleration = 0;
+  angle += angularVelocity * dt;
 
-    // ØKT KRAFT → fungerer på iPad
-    const gravityTorque = 0.001;
-    const liftTorque = 0.01;     // ← økt fra 0.003
-    const brakeTorque = 0.006;   // ← økt fra 0.0025
-    const damping = 0.985;
+  // Sjekk om du tipper for langt
+  const maxBack = -1.0; // for langt bakover
+  const maxForward = 0.4; // for langt fremover
 
-    const maxSafeAngle = Math.PI / 3;
-    const minSafeAngle = -Math.PI / 12;
+  if (angle < maxBack || angle > maxForward) {
+    gameOver = true;
+  } else {
+    distance += 0.01 * dt; // du "kjører" fremover så lenge du balanserer
+  }
+}
 
-    let keys = { a: false, d: false, w: false };
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    let distance = 0;
-    let bestDistance = 0;
-    let stylePoints = 0;
-    let inWheelie = false;
-    let crashed = false;
+  // Bakgrunn / "vei"
+  ctx.fillStyle = "#444";
+  ctx.fillRect(0, 300, canvas.width, 100);
 
-    let lastTime = null;
+  // Tegn sparkesykkel
+  const baseX = 200;
+  const baseY = 300;
 
-    function resetRun() {
-      angle = 0;
-      angularVelocity = 0;
-      angularAcceleration = 0;
-      distance = 0;
-      stylePoints = 0;
-      inWheelie = false;
-      crashed = false;
-      statusEl.textContent = "Ny runde! Trykk DRA OPP.";
-    }
+  ctx.save();
+  ctx.translate(baseX, baseY);
+  ctx.rotate(angle);
 
-    resetRun();
+  // Bakhjul
+  ctx.fillStyle = "#000";
+  ctx.beginPath();
+  ctx.arc(-40, 0, 20, 0, Math.PI * 2);
+  ctx.fill();
 
-    /* ------------------------------
-       SKJERMKNAPPER – HOLD FUNGERER
-    ------------------------------ */
+  // Framhjul
+  ctx.beginPath();
+  ctx.arc(40, 0, 20, 0, Math.PI * 2);
+  ctx.fill();
 
-    function bindButton(id, keyName) {
-      const btn = document.getElementById(id);
+  // Brett
+  ctx.strokeStyle = "#ddd";
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.moveTo(-40, 0);
+  ctx.lineTo(40, 0);
+  ctx.stroke();
 
-      btn.addEventListener("touchstart", (e) => {
-        e.preventDefault();
-        keys[keyName] = true;
-      });
+  // Styre
+  ctx.beginPath();
+  ctx.moveTo(40, 0);
+  ctx.lineTo(40, -50);
+  ctx.stroke();
 
-      btn.addEventListener("touchend", (e) => {
-        e.preventDefault();
-        keys[keyName] = false;
-      });
+  ctx.restore();
 
-      btn.addEventListener("mousedown", () => keys[keyName] = true);
-      btn.addEventListener("mouseup", () => keys[keyName] = false);
-      btn.addEventListener("mouseleave", () => keys[keyName] = false);
-    }
+  // Tekst
+  ctx.fillStyle = "#fff";
+  ctx.font = "20px sans-serif";
+  ctx.fillText("Distanse: " + distance.toFixed(1) + " m", 20, 30);
 
-    bindButton("btnD", "d");
-    bindButton("btnA", "a");
-    bindButton("btnW", "w");
+  if (gameOver) {
+    ctx.fillStyle = "red";
+    ctx.font = "40px sans-serif";
+    ctx.fillText("Game Over!", canvas.width / 2 - 100, 80);
+  }
+}
 
-    /* ------------------------------
-       FYSIKK
-    ------------------------------ */
+let lastTime = performance.now();
+function loop(timestamp) {
+  const dt = timestamp - lastTime;
+  lastTime = timestamp;
 
-    function update(dt) {
-      if (crashed) return;
+  update(dt);
+  draw();
 
-      const gravityDir = angle > 0 ? -1 : 1;
-      angularAcceleration = gravityDir * gravityTorque;
+  requestAnimationFrame(loop);
+}
 
-      if (keys.d) angularAcceleration += liftTorque;
-      if (keys.a) angularAcceleration -= brakeTorque;
-
-      angularVelocity += angularAcceleration * dt;
-      angularVelocity *= damping;
-      angle += angularVelocity * dt;
-
-      if (angle > maxSafeAngle || angle < minSafeAngle) {
-        crashed = true;
-        inWheelie = false;
-        statusEl.textContent = "Krasj! Trykk en knapp for å starte på nytt.";
-        if (distance > bestDistance) bestDistance = distance;
-        return;
-      }
-
-      const wheelieNow = angle > 0.05;
-
-      if (wheelieNow) {
-        if (!inWheelie) {
-          inWheelie = true;
-          distance = 0;
-          stylePoints = 0;
-          statusEl.textContent = "Wheelie!";
-        }
-        distance += 4 * dt;
-        if (keys.w) stylePoints += dt * 10;
-      } else {
-        if (inWheelie) {
-          inWheelie = false;
-          if (distance > bestDistance) bestDistance = distance;
-          statusEl.textContent = "Wheelie avsluttet.";
-        }
-      }
-
-      currentEl.textContent = distance.toFixed(2);
-      bestEl.textContent = bestDistance.toFixed(2);
-      styleEl.textContent = Math.floor(stylePoints);
-    }
-
-    /* ------------------------------
-       TEGNING
-    ------------------------------ */
-
-    function drawScooter() {
-      ctx.save();
-      ctx.translate(baseX, baseY);
-
-      ctx.fillStyle = "#111";
-      ctx.beginPath();
-      ctx.arc(0, 0, wheelRadius, 0, Math.PI * 2);
-      ctx.fill();
-
-      const frontX = scooterLength * Math.cos(angle);
-      const frontY = -scooterLength * Math.sin(angle);
-
-      ctx.beginPath();
-      ctx.arc(frontX, frontY, wheelRadius, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.strokeStyle = "#ddd";
-      ctx.lineWidth = 20;
-      ctx.lineCap = "round";
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.lineTo(frontX, frontY);
-      ctx.stroke();
-
-      const handleLength = 50;
-      const handleAngle = angle + Math.PI / 2;
-      const hx = frontX - 10 * Math.cos(angle);
-      const hy = frontY + 10 * Math.sin(angle);
-
-      ctx.strokeStyle = "#ccc";
-      ctx.lineWidth = 6;
-      ctx.beginPath();
-      ctx.moveTo(hx, hy);
-      ctx.lineTo(hx + handleLength * Math.cos(handleAngle),
-                 hy + handleLength * Math.sin(handleAngle));
-      ctx.stroke();
-
-      const px = hx + handleLength * Math.cos(handleAngle);
-      const py = hy + handleLength * Math.sin(handleAngle);
-
-      ctx.strokeStyle = "#fff";
-      ctx.lineWidth = 5;
-      ctx.beginPath();
-      ctx.moveTo(px, py);
-      ctx.lineTo(px, py - 40);
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.arc(px, py - 55, 10, 0, Math.PI * 2);
-      ctx.fillStyle = "#f5d7b2";
-      ctx.fill();
-
-      ctx.beginPath();
-      if (keys.w && inWheelie) {
-        ctx.moveTo(px, py - 10);
-        ctx.lineTo(px - 10, py + 15);
-        ctx.moveTo(px, py - 10);
-        ctx.lineTo(px + 5, py - 25);
-      } else {
-        ctx.moveTo(px, py - 10);
-        ctx.lineTo(px - 8, py + 20);
-        ctx.moveTo(px, py - 10);
-        ctx.lineTo(px + 8, py + 20);
-      }
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.moveTo(px, py - 30);
-      ctx.lineTo(px - 15, py - 10);
-      ctx.moveTo(px, py - 30);
-      ctx.lineTo(px + 15, py - 10);
-      ctx.stroke();
-
-      ctx.restore();
-    }
-
-    function drawGround() {
-      ctx.fillStyle = "#333";
-      ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
-
-      ctx.strokeStyle = "#bbb";
-      ctx.lineWidth = 3;
-      ctx.setLineDash([20, 20]);
-      ctx.beginPath();
-      ctx.moveTo(0, groundY + 20);
-      ctx.lineTo(canvas.width, groundY + 20);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
-
-    function loop(timestamp) {
-      if (!lastTime) lastTime = timestamp;
-      const dt = (timestamp - lastTime) / 1000;
-      lastTime = timestamp;
-
-      update(dt);
-
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      drawGround();
-      drawScooter();
-
-      requestAnimationFrame(loop);
-    }
-
-    requestAnimationFrame(loop);
-  </script>
-</body>
-</html>
+requestAnimationFrame(loop);
