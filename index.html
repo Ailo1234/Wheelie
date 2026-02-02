@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8" />
+  <title>Elsparkesykkel Wheelie-spill</title>
+  <style>
+    body {
+      margin: 0;
+      background: #222;
+      color: #eee;
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    canvas {
+      background: linear-gradient(#87ceeb 0 60%, #444 60% 100%);
+      border: 2px solid #555;
+      margin-top: 10px;
+    }
+    #info {
+      margin-top: 10px;
+      text-align: center;
+      line-height: 1.4;
+    }
+    .highlight {
+      color: #ffd54f;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>Elsparkesykkel Wheelie</h1>
+  <div id="info">
+    <div><span class="highlight">Mål:</span> Gjør en så lang wheelie som mulig!</div>
+    <div><span class="highlight">Styring:</span> D = dra opp (forhjul opp), A = brems (forhjul ned), W = stå på én fot (stilpoeng)</div>
+    <div>Hold balansen! Hvis vinkelen blir for stor, krasjer du.</div>
+    <div>Wheelie-lengde: <span id="current">0.00</span> m &nbsp;|&nbsp; Rekord: <span id="best">0.00</span> m</div>
+    <div>Stilpoeng (W): <span id="style">0</span></div>
+    <div id="status"></div>
+  </div>
+
+  <canvas id="game" width="900" height="400"></canvas>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+
+    const currentEl = document.getElementById("current");
+    const bestEl = document.getElementById("best");
+    const styleEl = document.getElementById("style");
+    const statusEl = document.getElementById("status");
+
+    // Grunnleggende fysikk og spilltilstand
+    const groundY = canvas.height * 0.65;
+    const scooterLength = 120;
+    const scooterHeight = 20;
+    const wheelRadius = 18;
+
+    let baseX = 200; // "pivot"-punkt (bakre hjul)
+    let baseY = groundY - wheelRadius;
+
+    let angle = 0; // 0 = flatt, positiv = forhjul opp
+    let angularVelocity = 0;
+    let angularAcceleration = 0;
+
+    const maxSafeAngle = Math.PI / 3; // ca 60 grader
+    const minSafeAngle = -Math.PI / 12; // litt nedover
+
+    const gravityTorque = 0.0009;
+    const liftTorque = 0.0025;
+    const brakeTorque = 0.0022;
+    const damping = 0.985;
+
+    let keys = { a: false, d: false, w: false };
+
+    let distance = 0;
+    let bestDistance = 0;
+    let stylePoints = 0;
+    let inWheelie = false;
+    let crashed = false;
+
+    let lastTime = null;
+
+    function resetRun() {
+      angle = 0;
+      angularVelocity = 0;
+      angularAcceleration = 0;
+      distance = 0;
+      stylePoints = 0;
+      inWheelie = false;
+      crashed = false;
+      statusEl.textContent = "Ny runde! Dra opp med D for wheelie.";
+    }
+
+    resetRun();
+
+    // Tastatur
+    window.addEventListener("keydown", (e) => {
+      const k = e.key.toLowerCase();
+      if (k === "a" || k === "d" || k === "w") {
+        e.preventDefault();
+      }
+      if (k === "a") keys.a = true;
+      if (k === "d") keys.d = true;
+      if (k === "w") keys.w = true;
+
+      if (crashed && (k === "a" || k === "d" || k === "w")) {
+        resetRun();
+      }
+    });
+
+    window.addEventListener("keyup", (e) => {
+      const k = e.key.toLowerCase();
+      if (k === "a") keys.a = false;
+      if (k === "d") keys.d = false;
+      if (k === "w") keys.w = false;
+    });
+
+    function update(dt) {
+      if (crashed) return;
+
+      // Fysikk: tyngdekraft vil dra scooteren ned mot bakken (angle -> 0)
+      const gravityDir = angle > 0 ? -1 : 1;
+      angularAcceleration = gravityDir * gravityTorque;
+
+      // D = dra opp (forhjul opp)
+      if (keys.d) {
+        angularAcceleration += liftTorque;
+      }
+
+      // A = brems (forhjul ned)
+      if (keys.a) {
+        angularAcceleration -= brakeTorque;
+      }
+
+      // Oppdater vinkel
+      angularVelocity += angularAcceleration * dt;
+      angularVelocity *= damping;
+      angle += angularVelocity * dt;
+
+      // Sjekk krasj
+      if (angle > maxSafeAngle || angle < minSafeAngle) {
+        crashed = true;
+        inWheelie = false;
+        statusEl.textContent = "Krasj! Trykk A, D eller W for å starte på nytt.";
+        if (distance > bestDistance) {
+          bestDistance = distance;
+        }
+        return;
+      }
+
+      // Wheelie-logikk: wheelie hvis forhjul er i lufta (angle > liten terskel)
+      const wheelieThreshold = 0.05;
+      const isWheelieNow = angle > wheelieThreshold;
+
+      if (isWheelieNow) {
+        if (!inWheelie) {
+          // Start wheelie
+          inWheelie = true;
+          distance = 0;
+          stylePoints = 0;
+          statusEl.textContent = "Wheelie! Hold balansen så lenge du kan.";
+        }
+        // Øk distanse (m) basert på tid
+        distance += 4 * dt; // 4 m/s som enkel fart
+        // Stilpoeng hvis W holdes mens wheelie
+        if (keys.w) {
+          stylePoints += dt * 10;
+        }
+      } else {
+        // Ikke wheelie
+        if (inWheelie) {
+          // Wheelie slutt
+          inWheelie = false;
+          if (distance > bestDistance) {
+            bestDistance = distance;
+          }
+          statusEl.textContent = "Wheelie avsluttet. Dra opp igjen med D!";
+        }
+      }
+
+      currentEl.textContent = distance.toFixed(2);
+      bestEl.textContent = bestDistance.toFixed(2);
+      styleEl.textContent = Math.floor(stylePoints);
+    }
+
+    function drawScooter() {
+      ctx.save();
+      ctx.translate(baseX, baseY);
+
+      // Bakre hjul (pivot)
+      ctx.fillStyle = "#111";
+      ctx.beginPath();
+      ctx.arc(0, 0, wheelRadius, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Forhjul-posisjon basert på vinkel
+      const frontX = scooterLength * Math.cos(angle);
+      const frontY = -scooterLength * Math.sin(angle);
+
+      // Forhjul
+      ctx.beginPath();
+      ctx.arc(frontX, frontY, wheelRadius, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Deck (plattform)
+      ctx.strokeStyle = "#ddd";
+      ctx.lineWidth = scooterHeight;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(frontX, frontY);
+      ctx.stroke();
+
+      // Styre
+      const handleLength = 50;
+      const handleAngle = angle + Math.PI / 2;
+      const handleBaseX = frontX - 10 * Math.cos(angle);
+      const handleBaseY = frontY + 10 * Math.sin(angle);
+
+      ctx.strokeStyle = "#ccc";
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.moveTo(handleBaseX, handleBaseY);
+      ctx.lineTo(
+        handleBaseX + handleLength * Math.cos(handleAngle),
+        handleBaseY + handleLength * Math.sin(handleAngle)
+      );
+      ctx.stroke();
+
+      // Person
+      const personBaseX = handleBaseX + handleLength * Math.cos(handleAngle);
+      const personBaseY = handleBaseY + handleLength * Math.sin(handleAngle);
+
+      // Kropp
+      ctx.strokeStyle = "#f5f5f5";
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.moveTo(personBaseX, personBaseY);
+      ctx.lineTo(personBaseX, personBaseY - 40);
+      ctx.stroke();
+
+      // Hode
+      ctx.beginPath();
+      ctx.arc(personBaseX, personBaseY - 55, 10, 0, Math.PI * 2);
+      ctx.fillStyle = "#f5d7b2";
+      ctx.fill();
+
+      // Ben
+      ctx.beginPath();
+      ctx.moveTo(personBaseX, personBaseY - 10);
+      if (keys.w && inWheelie) {
+        // Stå på én fot: ett ben opp, ett ned
+        ctx.lineTo(personBaseX - 10, personBaseY + 15);
+        ctx.moveTo(personBaseX, personBaseY - 10);
+        ctx.lineTo(personBaseX + 5, personBaseY - 25);
+      } else {
+        // Vanlig ståstilling
+        ctx.lineTo(personBaseX - 8, personBaseY + 20);
+        ctx.moveTo(personBaseX, personBaseY - 10);
+        ctx.lineTo(personBaseX + 8, personBaseY + 20);
+      }
+      ctx.stroke();
+
+      // Armer
+      ctx.beginPath();
+      ctx.moveTo(personBaseX, personBaseY - 30);
+      ctx.lineTo(personBaseX - 15, personBaseY - 10);
+      ctx.moveTo(personBaseX, personBaseY - 30);
+      ctx.lineTo(personBaseX + 15, personBaseY - 10);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    function drawGround() {
+      ctx.fillStyle = "#333";
+      ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
+
+      // Enkle "vei-striper"
+      ctx.strokeStyle = "#bbb";
+      ctx.lineWidth = 3;
+      ctx.setLineDash([20, 20]);
+      ctx.beginPath();
+      ctx.moveTo(0, groundY + 20);
+      ctx.lineTo(canvas.width, groundY + 20);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    function loop(timestamp) {
+      if (!lastTime) lastTime = timestamp;
+      const dt = (timestamp - lastTime) / 1000; // sekunder
+      lastTime = timestamp;
+
+      update(dt);
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawGround();
+      drawScooter();
+
+      requestAnimationFrame(loop);
+    }
+
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
