@@ -30,8 +30,6 @@
       color: #ffd54f;
       font-weight: bold;
     }
-
-    /* Skjermknapper */
     #buttons {
       margin-top: 15px;
       display: flex;
@@ -67,11 +65,10 @@
 
   <canvas id="game" width="900" height="400"></canvas>
 
-  <!-- Skjermknapper -->
   <div id="buttons">
-    <div class="btn" id="btnD">DRA OPP (D)</div>
-    <div class="btn" id="btnA">BREMS (A)</div>
-    <div class="btn" id="btnW">1 FOT (W)</div>
+    <div class="btn" id="btnD">DRA OPP</div>
+    <div class="btn" id="btnA">BREMS</div>
+    <div class="btn" id="btnW">1 FOT</div>
   </div>
 
   <script>
@@ -94,9 +91,10 @@
     let angularVelocity = 0;
     let angularAcceleration = 0;
 
+    // ØKT KRAFT → fungerer på iPad
     const gravityTorque = 0.001;
-    const liftTorque = 0.003;
-    const brakeTorque = 0.0025;
+    const liftTorque = 0.01;     // ← økt fra 0.003
+    const brakeTorque = 0.006;   // ← økt fra 0.0025
     const damping = 0.985;
 
     const maxSafeAngle = Math.PI / 3;
@@ -120,13 +118,13 @@
       stylePoints = 0;
       inWheelie = false;
       crashed = false;
-      statusEl.textContent = "Ny runde! Trykk DRA OPP for å starte wheelie.";
+      statusEl.textContent = "Ny runde! Trykk DRA OPP.";
     }
 
     resetRun();
 
     /* ------------------------------
-       SKJERMKNAPPER (iPad/telefon)
+       SKJERMKNAPPER – HOLD FUNGERER
     ------------------------------ */
 
     function bindButton(id, keyName) {
@@ -152,7 +150,7 @@
     bindButton("btnW", "w");
 
     /* ------------------------------
-       FYSIKK OG SPILLOPPDATERING
+       FYSIKK
     ------------------------------ */
 
     function update(dt) {
@@ -183,7 +181,7 @@
           inWheelie = true;
           distance = 0;
           stylePoints = 0;
-          statusEl.textContent = "Wheelie! Hold balansen.";
+          statusEl.textContent = "Wheelie!";
         }
         distance += 4 * dt;
         if (keys.w) stylePoints += dt * 10;
@@ -191,7 +189,7 @@
         if (inWheelie) {
           inWheelie = false;
           if (distance > bestDistance) bestDistance = distance;
-          statusEl.textContent = "Wheelie avsluttet. Trykk DRA OPP.";
+          statusEl.textContent = "Wheelie avsluttet.";
         }
       }
 
