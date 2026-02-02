@@ -1,117 +1,176 @@
-const canvas = document.getElementById("gameCanvas");
-const ctx = canvas.getContext("2d");
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8">
+  <title>Sparkesykkel Wheelie-spill</title>
+  <style>
+    body {
+      background: #222;
+      color: #fff;
+      font-family: sans-serif;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+    }
 
-// "Fysikk"
-let angle = -0.2;        // vinkel på sparkesykkelen (negativ = litt opp)
-let angularVelocity = 0; // hvor fort vinkelen endrer seg
-let gravity = 0.0015;    // "tyngdekraft" som drar fronten ned
-let controlForce = 0.003;// hvor mye spilleren kan påvirke
-let isUpPressed = false;
-let isDownPressed = false;
+    h1 {
+      margin-top: 20px;
+    }
 
-let distance = 0;
-let gameOver = false;
+    canvas {
+      background: #333;
+      border: 2px solid #555;
+      margin-top: 20px;
+      display: block;
+      margin-left: auto;
+      margin-right: auto;
+    }
 
-document.addEventListener("keydown", (e) => {
-  if (e.key === "ArrowUp" || e.key === "w") isUpPressed = true;
-  if (e.key === "ArrowDown" || e.key === "s") isDownPressed = true;
-});
+    p {
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Sparkesykkel Wheelie</h1>
+  <canvas id="gameCanvas" width="800" height="400"></canvas>
+  <p>Hold bakhjulet i lufta så lenge som mulig!<br>
+     W / Pil opp = løft fronten, S / Pil ned = senk.</p>
 
-document.addEventListener("keyup", (e) => {
-  if (e.key === "ArrowUp" || e.key === "w") isUpPressed = false;
-  if (e.key === "ArrowDown" || e.key === "s") isDownPressed = false;
-});
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
 
-function update(dt) {
-  if (gameOver) return;
+    // "Fysikk"
+    let angle = -0.2;        // vinkel på sparkesykkelen (negativ = litt opp)
+    let angularVelocity = 0; // hvor fort vinkelen endrer seg
+    let gravity = 0.0015;    // "tyngdekraft" som drar fronten ned
+    let controlForce = 0.003;// hvor mye spilleren kan påvirke
+    let isUpPressed = false;
+    let isDownPressed = false;
 
-  // Tyngdekraft drar fronten ned (vinkelen mot 0 og videre)
-  angularVelocity += gravity * dt;
+    let distance = 0;
+    let gameOver = false;
 
-  // Spillerkontroll
-  if (isUpPressed) {
-    angularVelocity -= controlForce * dt;
-  }
-  if (isDownPressed) {
-    angularVelocity += controlForce * dt;
-  }
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowUp" || e.key === "w" || e.key === "W") isUpPressed = true;
+      if (e.key === "ArrowDown" || e.key === "s" || e.key === "S") isDownPressed = true;
 
-  angle += angularVelocity * dt;
+      // Restart med Space når game over
+      if (gameOver && e.code === "Space") {
+        resetGame();
+      }
+    });
 
-  // Sjekk om du tipper for langt
-  const maxBack = -1.0; // for langt bakover
-  const maxForward = 0.4; // for langt fremover
+    document.addEventListener("keyup", (e) => {
+      if (e.key === "ArrowUp" || e.key === "w" || e.key === "W") isUpPressed = false;
+      if (e.key === "ArrowDown" || e.key === "s" || e.key === "S") isDownPressed = false;
+    });
 
-  if (angle < maxBack || angle > maxForward) {
-    gameOver = true;
-  } else {
-    distance += 0.01 * dt; // du "kjører" fremover så lenge du balanserer
-  }
-}
+    function resetGame() {
+      angle = -0.2;
+      angularVelocity = 0;
+      distance = 0;
+      gameOver = false;
+    }
 
-function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+    function update(dt) {
+      if (gameOver) return;
 
-  // Bakgrunn / "vei"
-  ctx.fillStyle = "#444";
-  ctx.fillRect(0, 300, canvas.width, 100);
+      // Tyngdekraft drar fronten ned (vinkelen mot 0 og videre)
+      angularVelocity += gravity * dt;
 
-  // Tegn sparkesykkel
-  const baseX = 200;
-  const baseY = 300;
+      // Spillerkontroll
+      if (isUpPressed) {
+        angularVelocity -= controlForce * dt;
+      }
+      if (isDownPressed) {
+        angularVelocity += controlForce * dt;
+      }
 
-  ctx.save();
-  ctx.translate(baseX, baseY);
-  ctx.rotate(angle);
+      angle += angularVelocity * dt;
 
-  // Bakhjul
-  ctx.fillStyle = "#000";
-  ctx.beginPath();
-  ctx.arc(-40, 0, 20, 0, Math.PI * 2);
-  ctx.fill();
+      // Sjekk om du tipper for langt
+      const maxBack = -1.0;   // for langt bakover
+      const maxForward = 0.4; // for langt fremover
 
-  // Framhjul
-  ctx.beginPath();
-  ctx.arc(40, 0, 20, 0, Math.PI * 2);
-  ctx.fill();
+      if (angle < maxBack || angle > maxForward) {
+        gameOver = true;
+      } else {
+        distance += 0.01 * dt; // du "kjører" fremover så lenge du balanserer
+      }
+    }
 
-  // Brett
-  ctx.strokeStyle = "#ddd";
-  ctx.lineWidth = 6;
-  ctx.beginPath();
-  ctx.moveTo(-40, 0);
-  ctx.lineTo(40, 0);
-  ctx.stroke();
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Styre
-  ctx.beginPath();
-  ctx.moveTo(40, 0);
-  ctx.lineTo(40, -50);
-  ctx.stroke();
+      // Bakgrunn / "vei"
+      ctx.fillStyle = "#444";
+      ctx.fillRect(0, 300, canvas.width, 100);
 
-  ctx.restore();
+      // Tegn sparkesykkel
+      const baseX = 200;
+      const baseY = 300;
 
-  // Tekst
-  ctx.fillStyle = "#fff";
-  ctx.font = "20px sans-serif";
-  ctx.fillText("Distanse: " + distance.toFixed(1) + " m", 20, 30);
+      ctx.save();
+      ctx.translate(baseX, baseY);
+      ctx.rotate(angle);
 
-  if (gameOver) {
-    ctx.fillStyle = "red";
-    ctx.font = "40px sans-serif";
-    ctx.fillText("Game Over!", canvas.width / 2 - 100, 80);
-  }
-}
+      // Bakhjul
+      ctx.fillStyle = "#000";
+      ctx.beginPath();
+      ctx.arc(-40, 0, 20, 0, Math.PI * 2);
+      ctx.fill();
 
-let lastTime = performance.now();
-function loop(timestamp) {
-  const dt = timestamp - lastTime;
-  lastTime = timestamp;
+      // Framhjul
+      ctx.beginPath();
+      ctx.arc(40, 0, 20, 0, Math.PI * 2);
+      ctx.fill();
 
-  update(dt);
-  draw();
+      // Brett
+      ctx.strokeStyle = "#ddd";
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.moveTo(-40, 0);
+      ctx.lineTo(40, 0);
+      ctx.stroke();
 
-  requestAnimationFrame(loop);
-}
+      // Styre
+      ctx.beginPath();
+      ctx.moveTo(40, 0);
+      ctx.lineTo(40, -50);
+      ctx.stroke();
 
-requestAnimationFrame(loop);
+      ctx.restore();
+
+      // Tekst
+      ctx.fillStyle = "#fff";
+      ctx.font = "20px sans-serif";
+      ctx.fillText("Distanse: " + distance.toFixed(1) + " m", 20, 30);
+
+      if (gameOver) {
+        ctx.fillStyle = "red";
+        ctx.font = "40px sans-serif";
+        ctx.fillText("Game Over!", canvas.width / 2 - 120, 80);
+
+        ctx.font = "20px sans-serif";
+        ctx.fillStyle = "#fff";
+        ctx.fillText("Trykk SPACE for å starte på nytt", canvas.width / 2 - 170, 120);
+      }
+    }
+
+    let lastTime = performance.now();
+    function loop(timestamp) {
+      const dt = timestamp - lastTime;
+      lastTime = timestamp;
+
+      update(dt);
+      draw();
+
+      requestAnimationFrame(loop);
+    }
+
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
