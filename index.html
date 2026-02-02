@@ -12,11 +12,14 @@
       display: flex;
       flex-direction: column;
       align-items: center;
+      user-select: none;
+      -webkit-user-select: none;
     }
     canvas {
       background: linear-gradient(#87ceeb 0 60%, #444 60% 100%);
       border: 2px solid #555;
       margin-top: 10px;
+      touch-action: none;
     }
     #info {
       margin-top: 10px;
@@ -27,19 +30,49 @@
       color: #ffd54f;
       font-weight: bold;
     }
+
+    /* Skjermknapper */
+    #buttons {
+      margin-top: 15px;
+      display: flex;
+      gap: 15px;
+    }
+    .btn {
+      background: #555;
+      color: white;
+      padding: 18px 28px;
+      font-size: 22px;
+      border-radius: 12px;
+      border: 2px solid #888;
+      text-align: center;
+      width: 150px;
+      touch-action: manipulation;
+    }
+    .btn:active {
+      background: #777;
+      transform: scale(0.97);
+    }
   </style>
 </head>
 <body>
   <h1>Elsparkesykkel Wheelie</h1>
+
   <div id="info">
     <div><span class="highlight">Mål:</span> Gjør en så lang wheelie som mulig!</div>
-    <div><span class="highlight">Styring:</span> D = dra opp, A = brems, W = stå på én fot</div>
+    <div><span class="highlight">Styring:</span> Bruk knappene under</div>
     <div>Wheelie-lengde: <span id="current">0.00</span> m &nbsp;|&nbsp; Rekord: <span id="best">0.00</span> m</div>
     <div>Stilpoeng: <span id="style">0</span></div>
     <div id="status"></div>
   </div>
 
   <canvas id="game" width="900" height="400"></canvas>
+
+  <!-- Skjermknapper -->
+  <div id="buttons">
+    <div class="btn" id="btnD">DRA OPP (D)</div>
+    <div class="btn" id="btnA">BREMS (A)</div>
+    <div class="btn" id="btnW">1 FOT (W)</div>
+  </div>
 
   <script>
     const canvas = document.getElementById("game");
@@ -87,32 +120,44 @@
       stylePoints = 0;
       inWheelie = false;
       crashed = false;
-      statusEl.textContent = "Ny runde! Trykk D for å starte wheelie.";
+      statusEl.textContent = "Ny runde! Trykk DRA OPP for å starte wheelie.";
     }
 
     resetRun();
 
-    // Tastaturkontroll med event.code (fungerer på alle tastaturer)
-    window.addEventListener("keydown", (e) => {
-      if (e.code === "KeyA") keys.a = true;
-      if (e.code === "KeyD") keys.d = true;
-      if (e.code === "KeyW") keys.w = true;
+    /* ------------------------------
+       SKJERMKNAPPER (iPad/telefon)
+    ------------------------------ */
 
-      if (crashed && (e.code === "KeyA" || e.code === "KeyD" || e.code === "KeyW")) {
-        resetRun();
-      }
-    });
+    function bindButton(id, keyName) {
+      const btn = document.getElementById(id);
 
-    window.addEventListener("keyup", (e) => {
-      if (e.code === "KeyA") keys.a = false;
-      if (e.code === "KeyD") keys.d = false;
-      if (e.code === "KeyW") keys.w = false;
-    });
+      btn.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        keys[keyName] = true;
+      });
+
+      btn.addEventListener("touchend", (e) => {
+        e.preventDefault();
+        keys[keyName] = false;
+      });
+
+      btn.addEventListener("mousedown", () => keys[keyName] = true);
+      btn.addEventListener("mouseup", () => keys[keyName] = false);
+      btn.addEventListener("mouseleave", () => keys[keyName] = false);
+    }
+
+    bindButton("btnD", "d");
+    bindButton("btnA", "a");
+    bindButton("btnW", "w");
+
+    /* ------------------------------
+       FYSIKK OG SPILLOPPDATERING
+    ------------------------------ */
 
     function update(dt) {
       if (crashed) return;
 
-      // Tyngdekraft
       const gravityDir = angle > 0 ? -1 : 1;
       angularAcceleration = gravityDir * gravityTorque;
 
@@ -123,16 +168,14 @@
       angularVelocity *= damping;
       angle += angularVelocity * dt;
 
-      // Sjekk krasj
       if (angle > maxSafeAngle || angle < minSafeAngle) {
         crashed = true;
         inWheelie = false;
-        statusEl.textContent = "Krasj! Trykk A, D eller W for å starte på nytt.";
+        statusEl.textContent = "Krasj! Trykk en knapp for å starte på nytt.";
         if (distance > bestDistance) bestDistance = distance;
         return;
       }
 
-      // Wheelie
       const wheelieNow = angle > 0.05;
 
       if (wheelieNow) {
@@ -148,7 +191,7 @@
         if (inWheelie) {
           inWheelie = false;
           if (distance > bestDistance) bestDistance = distance;
-          statusEl.textContent = "Wheelie avsluttet. Trykk D for ny wheelie.";
+          statusEl.textContent = "Wheelie avsluttet. Trykk DRA OPP.";
         }
       }
 
@@ -157,17 +200,19 @@
       styleEl.textContent = Math.floor(stylePoints);
     }
 
+    /* ------------------------------
+       TEGNING
+    ------------------------------ */
+
     function drawScooter() {
       ctx.save();
       ctx.translate(baseX, baseY);
 
-      // Bakre hjul
       ctx.fillStyle = "#111";
       ctx.beginPath();
       ctx.arc(0, 0, wheelRadius, 0, Math.PI * 2);
       ctx.fill();
 
-      // Forhjul
       const frontX = scooterLength * Math.cos(angle);
       const frontY = -scooterLength * Math.sin(angle);
 
@@ -175,7 +220,6 @@
       ctx.arc(frontX, frontY, wheelRadius, 0, Math.PI * 2);
       ctx.fill();
 
-      // Deck
       ctx.strokeStyle = "#ddd";
       ctx.lineWidth = 20;
       ctx.lineCap = "round";
@@ -184,7 +228,6 @@
       ctx.lineTo(frontX, frontY);
       ctx.stroke();
 
-      // Styre
       const handleLength = 50;
       const handleAngle = angle + Math.PI / 2;
       const hx = frontX - 10 * Math.cos(angle);
@@ -198,11 +241,9 @@
                  hy + handleLength * Math.sin(handleAngle));
       ctx.stroke();
 
-      // Person
       const px = hx + handleLength * Math.cos(handleAngle);
       const py = hy + handleLength * Math.sin(handleAngle);
 
-      // Kropp
       ctx.strokeStyle = "#fff";
       ctx.lineWidth = 5;
       ctx.beginPath();
@@ -210,13 +251,11 @@
       ctx.lineTo(px, py - 40);
       ctx.stroke();
 
-      // Hode
       ctx.beginPath();
       ctx.arc(px, py - 55, 10, 0, Math.PI * 2);
       ctx.fillStyle = "#f5d7b2";
       ctx.fill();
 
-      // Ben
       ctx.beginPath();
       if (keys.w && inWheelie) {
         ctx.moveTo(px, py - 10);
@@ -231,7 +270,6 @@
       }
       ctx.stroke();
 
-      // Armer
       ctx.beginPath();
       ctx.moveTo(px, py - 30);
       ctx.lineTo(px - 15, py - 10);
