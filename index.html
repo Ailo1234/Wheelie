@@ -2,13 +2,13 @@
 <html lang="no">
 <head>
 <meta charset="UTF-8">
-<title>Scooter Wheelie Balance</title>
+<title>Scooter Wheelie - Balanse</title>
 <style>
     body {
         margin: 0;
         background: #222;
         color: #fff;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        font-family: 'Segoe UI', sans-serif;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -27,8 +27,23 @@
         border-radius: 10px;
         margin-top: 10px;
         min-width: 300px;
+        position: relative;
     }
-    .game-over {
+    #restartBtn {
+        display: none;
+        margin-top: 10px;
+        padding: 10px 20px;
+        font-size: 16px;
+        background: #4caf50;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+    #restartBtn:hover {
+        background: #45a049;
+    }
+    .game-over-text {
         color: #ff5555;
         font-weight: bold;
         display: none;
@@ -39,9 +54,10 @@
  
 <div class="stats">
     <h1>Scooter Wheelie</h1>
-    <p>Venstre/Høyre piltaster for å balansere</p>
+    <p>Bruk <b>Venstre</b> og <b>Høyre</b> piltast for å holde balansen!</p>
     <h2>Meter: <span id="score">0</span>m</h2>
-    <div id="gameOver" class="game-over">CRASH! Trykk F5 for å prøve igjen.</div>
+    <div id="statusText" class="game-over-text">CRASH!</div>
+    <button id="restartBtn">Prøv Igjen</button>
 </div>
  
 <canvas id="game" width="800" height="400"></canvas>
@@ -50,61 +66,76 @@
     const canvas = document.getElementById("game");
     const ctx = canvas.getContext("2d");
     const scoreEl = document.getElementById("score");
-    const gameOverEl = document.getElementById("gameOver");
+    const statusText = document.getElementById("statusText");
+    const restartBtn = document.getElementById("restartBtn");
  
     let score = 0;
     let isGameOver = false;
+    let keys = {};
  
+    // Vi lager en funksjon for å sette start-verdiene
     const scooter = {
         x: 150,
-        y: 330, // Plassert på bakken
+        y: 330,
         width: 80,
         height: 60,
-        tilt: 0,          // Vinkel i radianer
-        tiltVelocity: 0,  // Hvor fort den tipper akkurat nå
-        gravity: 0.002,   // Tyngdekraft som drar forhjulet ned
-        balancePower: 0.005 // Hvor mye piltastene påvirker balansen
+        tilt: 0,
+        tiltVelocity: 0,
+        gravity: 0.0015,      // Redusert fra 0.002
+        balancePower: 0.0025, // Redusert fra 0.005 for mer kontroll
+        friction: 0.92        // Gjør bevegelsen litt "seigere"
     };
  
-    let keys = {};
     window.addEventListener("keydown", e => keys[e.key] = true);
     window.addEventListener("keyup", e => keys[e.key] = false);
+    
+    restartBtn.addEventListener("click", resetGame);
+ 
+    function resetGame() {
+        score = 0;
+        isGameOver = false;
+        scooter.tilt = 0;
+        scooter.tiltVelocity = 0;
+        scoreEl.textContent = "0";
+        statusText.style.display = "none";
+        restartBtn.style.display = "none";
+    }
  
     function update() {
         if (isGameOver) return;
  
-        // 1. Inputs påvirker tiltVelocity
+        // Inputs
         if (keys["ArrowRight"]) {
-            scooter.tiltVelocity += scooter.balancePower; // Lene bakover
+            scooter.tiltVelocity += scooter.balancePower;
         }
         if (keys["ArrowLeft"]) {
-            scooter.tiltVelocity -= scooter.balancePower; // Lene forover
+            scooter.tiltVelocity -= scooter.balancePower;
         }
  
-        // 2. Naturlig tyngdekraft (drar den ned mot bakken)
-        // Men hvis man tipper for langt bakover, drar tyngdekraften deg ENDA lenger bak
+        // Fysikk
         if (scooter.tilt > 0) {
-            scooter.tiltVelocity += (scooter.tilt * 0.004); // "Instabilitet"
-            scooter.tiltVelocity -= scooter.gravity;       // "Tyngdekraft ned"
+            // "Instabilitet" - jo mer tilt, jo mer vil den tippe (men redusert kraft her)
+            scooter.tiltVelocity += (scooter.tilt * 0.002); 
+            scooter.tiltVelocity -= scooter.gravity;
         }
  
-        // 3. Oppdater vinkelen
         scooter.tilt += scooter.tiltVelocity;
-        scooter.tiltVelocity *= 0.95; // Litt friksjon/motstand så den ikke løper løpsk
+        scooter.tiltVelocity *= scooter.friction;
  
-        // 4. Sjekk kollisjon med bakken
+        // Hindre at forhjulet går under bakken
         if (scooter.tilt < 0) {
             scooter.tilt = 0;
             scooter.tiltVelocity = 0;
         }
  
-        // 5. Sjekk "Crash" (tippet helt over)
-        if (scooter.tilt > 1.4) { // Ca 80 grader
+        // Sjekk krasj (tippet over 85 grader)
+        if (scooter.tilt > 1.5) {
             isGameOver = true;
-            gameOverEl.style.display = "block";
+            statusText.style.display = "block";
+            restartBtn.style.display = "inline-block";
         }
  
-        // 6. Score (Kun hvis forhjulet er over bakken)
+        // Poenggiving
         if (scooter.tilt > 0.05 && !isGameOver) {
             score += 0.1;
             scoreEl.textContent = Math.floor(score);
@@ -113,51 +144,44 @@
  
     function drawScooter() {
         ctx.save();
-        
-        // Vi flytter "nullpunktet" til bakhjulet
-        // Dette gjør at når vi roterer, så roterer vi rundt bakdekket
-        const backWheelX = scooter.x;
-        const backWheelY = scooter.y;
-        
-        ctx.translate(backWheelX, backWheelY);
-        ctx.rotate(-scooter.tilt); // Roter oppover
+        ctx.translate(scooter.x, scooter.y);
+        ctx.rotate(-scooter.tilt);
  
-        // Tegn selve brettet (deck)
+        // Brett
         ctx.fillStyle = "#333";
         ctx.fillRect(0, -10, 60, 8);
  
-        // Tegn styret (handlebars)
+        // Styre
         ctx.strokeStyle = "#555";
         ctx.lineWidth = 4;
         ctx.beginPath();
         ctx.moveTo(60, -10);
-        ctx.lineTo(60, -50); // Stang opp
-        ctx.lineTo(50, -50); // Håndtak
+        ctx.lineTo(60, -50);
+        ctx.lineTo(50, -50);
         ctx.stroke();
  
-        // Tegn hjulene
+        // Hjul
         ctx.fillStyle = "#111";
-        // Bakhjul (sentrert i 0,0)
         ctx.beginPath();
-        ctx.arc(0, 0, 10, 0, Math.PI * 2);
+        ctx.arc(0, 0, 10, 0, Math.PI * 2); // Bakhjul
         ctx.fill();
-        // Forhjul
         ctx.beginPath();
-        ctx.arc(60, 0, 10, 0, Math.PI * 2);
+        ctx.arc(60, 0, 10, 0, Math.PI * 2); // Forhjul
         ctx.fill();
  
         ctx.restore();
     }
  
     function drawRoad() {
-        // Bakken
         ctx.fillStyle = "#444";
         ctx.fillRect(0, 340, canvas.width, 60);
         
-        // Striper i veien (beveger seg for å gi illusjon av fart)
         ctx.strokeStyle = "#fff";
         ctx.setLineDash([30, 30]);
-        ctx.lineDashOffset = (score * 10) % 60; 
+        // Veien beveger seg bare hvis du faktisk gjør en wheelie
+        let roadSpeed = (scooter.tilt > 0) ? (score * 10) : 0;
+        ctx.lineDashOffset = roadSpeed % 60; 
+        
         ctx.beginPath();
         ctx.moveTo(0, 370);
         ctx.lineTo(canvas.width, 370);
@@ -166,11 +190,9 @@
  
     function gameLoop() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
- 
         update();
         drawRoad();
         drawScooter();
- 
         requestAnimationFrame(gameLoop);
     }
  
