@@ -2,7 +2,7 @@
 <html lang="no">
 <head>
   <meta charset="UTF-8">
-  <title>Sparkesykkel-spill uten hindringer</title>
+  <title>Sparkesykkel-spill med wheelie</title>
   <style>
     body {
       margin: 0;
@@ -27,7 +27,7 @@
 </head>
 <body>
   <h1>Sparkesykkel-spill</h1>
-  <p>Bruk venstre/høyre piltast for å styre. Poeng øker automatisk.</p>
+  <p>Hold inne høyre piltast for wheelie</p>
   <p>Poeng: <span id="score">0</span></p>
 
   <canvas id="game" width="600" height="400"></canvas>
@@ -42,7 +42,8 @@
       y: canvas.height - 60,
       width: 30,
       height: 50,
-      speed: 5
+      speed: 5,
+      tilt: 0 // rotasjonsvinkel
     };
 
     let keys = {};
@@ -55,20 +56,39 @@
       if (keys["ArrowLeft"]) scooter.x -= scooter.speed;
       if (keys["ArrowRight"]) scooter.x += scooter.speed;
 
+      // Wheelie-effekt: tilt når høyre piltast holdes inne
+      if (keys["ArrowRight"]) {
+        scooter.tilt = Math.min(scooter.tilt + 0.05, 0.6); // maks tilt
+      } else {
+        scooter.tilt = Math.max(scooter.tilt - 0.05, 0); // gå tilbake til normal
+      }
+
       if (scooter.x < 0) scooter.x = 0;
       if (scooter.x + scooter.width > canvas.width)
         scooter.x = canvas.width - scooter.width;
     }
 
     function drawScooter() {
-      ctx.fillStyle = "#ffeb3b";
-      ctx.fillRect(scooter.x, scooter.y, scooter.width, scooter.height);
+      ctx.save();
 
+      // Flytt koordinatsystemet til midten av sparkesykkelen
+      ctx.translate(scooter.x + scooter.width / 2, scooter.y + scooter.height / 2);
+
+      // Roter basert på tilt
+      ctx.rotate(-scooter.tilt);
+
+      // Tegn sparkesykkelen
+      ctx.fillStyle = "#ffeb3b";
+      ctx.fillRect(-scooter.width / 2, -scooter.height / 2, scooter.width, scooter.height);
+
+      // Hjul
       ctx.fillStyle = "#000";
       ctx.beginPath();
-      ctx.arc(scooter.x + 5, scooter.y + scooter.height, 6, 0, Math.PI * 2);
-      ctx.arc(scooter.x + scooter.width - 5, scooter.y + scooter.height, 6, 0, Math.PI * 2);
+      ctx.arc(-scooter.width / 2 + 5, scooter.height / 2, 6, 0, Math.PI * 2);
+      ctx.arc(scooter.width / 2 - 5, scooter.height / 2, 6, 0, Math.PI * 2);
       ctx.fill();
+
+      ctx.restore();
     }
 
     function drawRoad() {
