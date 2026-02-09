@@ -2,175 +2,234 @@
 <html lang="no">
 <head>
   <meta charset="UTF-8">
-  <title>Sparkesykkel Wheelie-spill</title>
+  <title>Sparkesykkel-spill</title>
   <style>
     body {
+      margin: 0;
       background: #222;
       color: #fff;
-      font-family: sans-serif;
-      text-align: center;
-      margin: 0;
-      padding: 0;
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
     }
 
     h1 {
-      margin-top: 20px;
+      margin-top: 10px;
+    }
+
+    #gameContainer {
+      position: relative;
     }
 
     canvas {
-      background: #333;
-      border: 2px solid #555;
-      margin-top: 20px;
+      background: linear-gradient(#87ceeb, #4caf50);
+      border: 3px solid #fff;
       display: block;
-      margin-left: auto;
-      margin-right: auto;
+      margin-top: 10px;
     }
 
-    p {
+    #info {
       margin-top: 10px;
+      text-align: center;
+    }
+
+    #restartBtn {
+      margin-top: 10px;
+      padding: 8px 16px;
+      font-size: 16px;
+      cursor: pointer;
+      display: none;
     }
   </style>
 </head>
 <body>
-  <h1>Sparkesykkel Wheelie</h1>
-  <canvas id="gameCanvas" width="800" height="400"></canvas>
-  <p>Hold bakhjulet i lufta så lenge som mulig!<br>
-     W / Pil opp = løft fronten, S / Pil ned = senk.</p>
+  <h1>Sparkesykkel-spill</h1>
+  <div id="info">
+    <p>Bruk piltaster: <b>Venstre</b> / <b>Høyre</b> for å styre. Samle poeng ved å overleve lengst mulig.</p>
+    <p>Poeng: <span id="score">0</span></p>
+  </div>
+
+  <div id="gameContainer">
+    <canvas id="game" width="600" height="400"></canvas>
+    <button id="restartBtn">Start på nytt</button>
+  </div>
 
   <script>
-    const canvas = document.getElementById("gameCanvas");
-    const ctx = canvas.getContext("2d");
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('score');
+    const restartBtn = document.getElementById('restartBtn');
 
-    // "Fysikk"
-    let angle = -0.2;        // vinkel på sparkesykkelen (negativ = litt opp)
-    let angularVelocity = 0; // hvor fort vinkelen endrer seg
-    let gravity = 0.0015;    // "tyngdekraft" som drar fronten ned
-    let controlForce = 0.003;// hvor mye spilleren kan påvirke
-    let isUpPressed = false;
-    let isDownPressed = false;
+    const scooter = {
+      x: canvas.width / 2 - 15,
+      y: canvas.height - 60,
+      width: 30,
+      height: 50,
+      speed: 5
+    };
 
-    let distance = 0;
+    let obstacles = [];
+    let keys = {};
+    let score = 0;
     let gameOver = false;
+    let frameCount = 0;
 
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "ArrowUp" || e.key === "w" || e.key === "W") isUpPressed = true;
-      if (e.key === "ArrowDown" || e.key === "s" || e.key === "S") isDownPressed = true;
-
-      // Restart med Space når game over
-      if (gameOver && e.code === "Space") {
-        resetGame();
-      }
+    // Lytt etter tastetrykk
+    window.addEventListener('keydown', (e) => {
+      keys[e.key] = true;
     });
 
-    document.addEventListener("keyup", (e) => {
-      if (e.key === "ArrowUp" || e.key === "w" || e.key === "W") isUpPressed = false;
-      if (e.key === "ArrowDown" || e.key === "s" || e.key === "S") isDownPressed = false;
+    window.addEventListener('keyup', (e) => {
+      keys[e.key] = false;
+    });
+
+    restartBtn.addEventListener('click', () => {
+      resetGame();
     });
 
     function resetGame() {
-      angle = -0.2;
-      angularVelocity = 0;
-      distance = 0;
+      obstacles = [];
+      score = 0;
+      frameCount = 0;
       gameOver = false;
+      scooter.x = canvas.width / 2 - scooter.width / 2;
+      scoreEl.textContent = score;
+      restartBtn.style.display = 'none';
+      requestAnimationFrame(gameLoop);
     }
 
-    function update(dt) {
+    function createObstacle() {
+      const width = 40;
+      const x = Math.random() * (canvas.width - width);
+      const speed = 3 + Math.random() * 2;
+      obstacles.push({
+        x,
+        y: -50,
+        width,
+        height: 40,
+        speed
+      });
+    }
+
+    function updateScooter() {
+      if (keys['ArrowLeft']) {
+        scooter.x -= scooter.speed;
+      }
+      if (keys['ArrowRight']) {
+        scooter.x += scooter.speed;
+      }
+
+      // Hold sparkesykkelen innenfor banen
+      if (scooter.x < 0) scooter.x = 0;
+      if (scooter.x + scooter.width > canvas.width) {
+        scooter.x = canvas.width - scooter.width;
+      }
+    }
+
+    function updateObstacles() {
+      for (let i = obstacles.length - 1; i >= 0; i--) {
+        const o = obstacles[i];
+        o.y += o.speed;
+
+        // Fjern hindringer som har gått ut av skjermen
+        if (o.y > canvas.height) {
+          obstacles.splice(i, 1);
+          score += 10; // Poeng for å ha unngått en hindring
+          scoreEl.textContent = score;
+        }
+
+        // Kollisjonssjekk
+        if (isColliding(scooter, o)) {
+          endGame();
+        }
+      }
+    }
+
+    function isColliding(a, b) {
+      return (
+        a.x < b.x + b.width &&
+        a.x + a.width > b.x &&
+        a.y < b.y + b.height &&
+        a.y + a.height > b.y
+      );
+    }
+
+    function drawScooter() {
+      // Enkel “sparkesykkel”-figur
+      ctx.fillStyle = '#ffeb3b';
+      ctx.fillRect(scooter.x, scooter.y, scooter.width, scooter.height);
+
+      // Hjul
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.arc(scooter.x + 5, scooter.y + scooter.height, 6, 0, Math.PI * 2);
+      ctx.arc(scooter.x + scooter.width - 5, scooter.y + scooter.height, 6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawObstacles() {
+      ctx.fillStyle = '#f44336';
+      obstacles.forEach(o => {
+        ctx.fillRect(o.x, o.y, o.width, o.height);
+      });
+    }
+
+    function drawRoad() {
+      // Vei
+      ctx.fillStyle = '#555';
+      ctx.fillRect(0, canvas.height - 120, canvas.width, 120);
+
+      // Midtstripe
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 4;
+      ctx.setLineDash([20, 15]);
+      ctx.beginPath();
+      ctx.moveTo(0, canvas.height - 60);
+      ctx.lineTo(canvas.width, canvas.height - 60);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    function endGame() {
+      gameOver = true;
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = '#fff';
+      ctx.font = '32px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('Game Over!', canvas.width / 2, canvas.height / 2 - 20);
+      ctx.font = '24px Arial';
+      ctx.fillText('Poeng: ' + score, canvas.width / 2, canvas.height / 2 + 20);
+
+      restartBtn.style.display = 'block';
+    }
+
+    function gameLoop() {
       if (gameOver) return;
 
-      // Tyngdekraft drar fronten ned (vinkelen mot 0 og videre)
-      angularVelocity += gravity * dt;
-
-      // Spillerkontroll
-      if (isUpPressed) {
-        angularVelocity -= controlForce * dt;
-      }
-      if (isDownPressed) {
-        angularVelocity += controlForce * dt;
-      }
-
-      angle += angularVelocity * dt;
-
-      // Sjekk om du tipper for langt
-      const maxBack = -1.0;   // for langt bakover
-      const maxForward = 0.4; // for langt fremover
-
-      if (angle < maxBack || angle > maxForward) {
-        gameOver = true;
-      } else {
-        distance += 0.01 * dt; // du "kjører" fremover så lenge du balanserer
-      }
-    }
-
-    function draw() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Bakgrunn / "vei"
-      ctx.fillStyle = "#444";
-      ctx.fillRect(0, 300, canvas.width, 100);
+      frameCount++;
 
-      // Tegn sparkesykkel
-      const baseX = 200;
-      const baseY = 300;
-
-      ctx.save();
-      ctx.translate(baseX, baseY);
-      ctx.rotate(angle);
-
-      // Bakhjul
-      ctx.fillStyle = "#000";
-      ctx.beginPath();
-      ctx.arc(-40, 0, 20, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Framhjul
-      ctx.beginPath();
-      ctx.arc(40, 0, 20, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Brett
-      ctx.strokeStyle = "#ddd";
-      ctx.lineWidth = 6;
-      ctx.beginPath();
-      ctx.moveTo(-40, 0);
-      ctx.lineTo(40, 0);
-      ctx.stroke();
-
-      // Styre
-      ctx.beginPath();
-      ctx.moveTo(40, 0);
-      ctx.lineTo(40, -50);
-      ctx.stroke();
-
-      ctx.restore();
-
-      // Tekst
-      ctx.fillStyle = "#fff";
-      ctx.font = "20px sans-serif";
-      ctx.fillText("Distanse: " + distance.toFixed(1) + " m", 20, 30);
-
-      if (gameOver) {
-        ctx.fillStyle = "red";
-        ctx.font = "40px sans-serif";
-        ctx.fillText("Game Over!", canvas.width / 2 - 120, 80);
-
-        ctx.font = "20px sans-serif";
-        ctx.fillStyle = "#fff";
-        ctx.fillText("Trykk SPACE for å starte på nytt", canvas.width / 2 - 170, 120);
+      // Lag nye hindringer med jevne mellomrom
+      if (frameCount % 60 === 0) {
+        createObstacle();
       }
+
+      updateScooter();
+      updateObstacles();
+
+      drawRoad();
+      drawScooter();
+      drawObstacles();
+
+      requestAnimationFrame(gameLoop);
     }
 
-    let lastTime = performance.now();
-    function loop(timestamp) {
-      const dt = timestamp - lastTime;
-      lastTime = timestamp;
-
-      update(dt);
-      draw();
-
-      requestAnimationFrame(loop);
-    }
-
-    requestAnimationFrame(loop);
+    // Start spillet første gang
+    resetGame();
   </script>
 </body>
 </html>
