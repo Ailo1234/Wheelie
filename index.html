@@ -2,11 +2,11 @@
 <html lang="no">
 <head>
 <meta charset="UTF-8">
-<title>Scooter Wheelie - Balanse</title>
+<title>Scooter Wheelie City</title>
 <style>
     body {
         margin: 0;
-        background: #222;
+        background: #050505;
         color: #fff;
         font-family: 'Segoe UI', sans-serif;
         display: flex;
@@ -15,36 +15,37 @@
         overflow: hidden;
     }
     canvas {
-        background: linear-gradient(#87ceeb, #4caf50);
-        border: 4px solid #444;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        background: linear-gradient(#0f172a, #1e293b); /* Mørk nattehimmel */
+        border: 4px solid #334155;
+        box-shadow: 0 0 50px rgba(0,0,0,1);
         margin-top: 20px;
     }
-    .stats {
+    .ui {
         text-align: center;
-        background: #333;
         padding: 15px;
-        border-radius: 10px;
-        margin-top: 10px;
-        min-width: 300px;
-        position: relative;
+        background: #111;
+        border-radius: 0 0 15px 15px;
+        border: 1px solid #333;
+        min-width: 500px;
+    }
+    .controls-hint {
+        font-size: 0.9em;
+        color: #94a3b8;
     }
     #restartBtn {
         display: none;
         margin-top: 10px;
-        padding: 10px 20px;
-        font-size: 16px;
-        background: #4caf50;
+        padding: 12px 24px;
+        background: #22c55e;
         color: white;
         border: none;
-        border-radius: 5px;
+        border-radius: 8px;
         cursor: pointer;
+        font-weight: bold;
     }
-    #restartBtn:hover {
-        background: #45a049;
-    }
-    .game-over-text {
-        color: #ff5555;
+    .crash-msg {
+        color: #ef4444;
+        font-size: 1.5em;
         font-weight: bold;
         display: none;
     }
@@ -52,12 +53,12 @@
 </head>
 <body>
  
-<div class="stats">
-    <h1>Scooter Wheelie</h1>
-    <p>Bruk <b>Venstre</b> og <b>Høyre</b> piltast for å holde balansen!</p>
-    <h2>Meter: <span id="score">0</span>m</h2>
-    <div id="statusText" class="game-over-text">CRASH!</div>
-    <button id="restartBtn">Prøv Igjen</button>
+<div class="ui">
+    <h1 style="margin:0">City Scooter Wheelie</h1>
+    <p class="controls-hint"><b>MELLOMROM</b>: Gass | <b>PIL VENSTRE</b>: Len bakover | <b>PIL HØYRE</b>: Len forover</p>
+    <h2 style="color:#fbbf24">Meter: <span id="score">0</span>m</h2>
+    <div id="crashMsg" class="crash-msg">DU KRASJET!</div>
+    <button id="restartBtn" onclick="resetGame()">PRØV IGJEN</button>
 </div>
  
 <canvas id="game" width="800" height="400"></canvas>
@@ -66,137 +67,144 @@
     const canvas = document.getElementById("game");
     const ctx = canvas.getContext("2d");
     const scoreEl = document.getElementById("score");
-    const statusText = document.getElementById("statusText");
+    const crashMsg = document.getElementById("crashMsg");
     const restartBtn = document.getElementById("restartBtn");
  
     let score = 0;
+    let speed = 0;
     let isGameOver = false;
     let keys = {};
+    let cityOffset = 0;
  
-    // Vi lager en funksjon for å sette start-verdiene
-    const scooter = {
-        x: 150,
-        y: 330,
-        width: 80,
-        height: 60,
+    // Generer faste bygninger for to lag (bakre og fremre)
+    const backBuildings = [];
+    const frontBuildings = [];
+    
+    for(let i = 0; i < 15; i++) {
+        backBuildings.push({ x: i * 100, w: 80 + Math.random()*100, h: 150 + Math.random()*150 });
+        frontBuildings.push({ x: i * 150, w: 100 + Math.random()*120, h: 80 + Math.random()*100 });
+    }
+ 
+    let scooter = {
+        x: 200,
+        y: 340,
         tilt: 0,
-        tiltVelocity: 0,
-        gravity: 0.0015,      // Redusert fra 0.002
-        balancePower: 0.0025, // Redusert fra 0.005 for mer kontroll
-        friction: 0.92        // Gjør bevegelsen litt "seigere"
+        tiltV: 0,
+        balancePower: 0.003,
+        gravity: 0.0018
     };
  
-    window.addEventListener("keydown", e => keys[e.key] = true);
-    window.addEventListener("keyup", e => keys[e.key] = false);
-    
-    restartBtn.addEventListener("click", resetGame);
+    window.addEventListener("keydown", e => { keys[e.code] = true; });
+    window.addEventListener("keyup", e => { keys[e.code] = false; });
  
     function resetGame() {
-        score = 0;
-        isGameOver = false;
-        scooter.tilt = 0;
-        scooter.tiltVelocity = 0;
+        score = 0; speed = 0; isGameOver = false;
+        scooter.tilt = 0; scooter.tiltV = 0;
         scoreEl.textContent = "0";
-        statusText.style.display = "none";
+        crashMsg.style.display = "none";
         restartBtn.style.display = "none";
     }
  
     function update() {
         if (isGameOver) return;
  
-        // Inputs
-        if (keys["ArrowRight"]) {
-            scooter.tiltVelocity += scooter.balancePower;
+        // Gasspedal (Mellomrom)
+        if (keys["Space"]) {
+            speed = Math.min(speed + 0.1, 10);
+            // Gass gir også et lite naturlig løft i fronten
+            if (scooter.tilt > 0) scooter.tiltV += 0.0005;
+        } else {
+            speed *= 0.97; // Bremsing når du slipper gassen
         }
-        if (keys["ArrowLeft"]) {
-            scooter.tiltVelocity -= scooter.balancePower;
-        }
+ 
+        // Balansering (Piltaster)
+        if (keys["ArrowLeft"]) scooter.tiltV += scooter.balancePower; // Len bak
+        if (keys["ArrowRight"]) scooter.tiltV -= scooter.balancePower; // Len foran
  
         // Fysikk
         if (scooter.tilt > 0) {
-            // "Instabilitet" - jo mer tilt, jo mer vil den tippe (men redusert kraft her)
-            scooter.tiltVelocity += (scooter.tilt * 0.002); 
-            scooter.tiltVelocity -= scooter.gravity;
+            scooter.tiltV += (scooter.tilt * 0.003); // Instabilitet ved høyere tilt
+            scooter.tiltV -= scooter.gravity;        // Tyngdekraft
         }
  
-        scooter.tilt += scooter.tiltVelocity;
-        scooter.tiltVelocity *= scooter.friction;
+        scooter.tilt += scooter.tiltV;
+        scooter.tiltV *= 0.94; // Friksjon i leddet
  
-        // Hindre at forhjulet går under bakken
+        // Bakken
         if (scooter.tilt < 0) {
             scooter.tilt = 0;
-            scooter.tiltVelocity = 0;
+            scooter.tiltV = 0;
         }
  
-        // Sjekk krasj (tippet over 85 grader)
+        // Krasj-sjekk (tippet for langt)
         if (scooter.tilt > 1.5) {
             isGameOver = true;
-            statusText.style.display = "block";
+            crashMsg.style.display = "block";
             restartBtn.style.display = "inline-block";
         }
  
-        // Poenggiving
-        if (scooter.tilt > 0.05 && !isGameOver) {
-            score += 0.1;
+        // Poeng
+        if (speed > 0.1) {
+            score += speed / 50;
             scoreEl.textContent = Math.floor(score);
+            cityOffset += speed;
         }
     }
  
-    function drawScooter() {
+    function drawCityLayer(buildings, speedFactor, color) {
+        ctx.fillStyle = color;
+        buildings.forEach(b => {
+            let xPos = (b.x - cityOffset * speedFactor) % (canvas.width + 200);
+            if (xPos < -200) b.x += canvas.width + 400; // Loop bygningene
+            ctx.fillRect(xPos, canvas.height - b.h - 60, b.w, b.h);
+            
+            // Små vinduer
+            ctx.fillStyle = "rgba(255, 255, 150, 0.1)";
+            ctx.fillRect(xPos + 10, canvas.height - b.h - 50, 5, 5);
+            ctx.fillStyle = color;
+        });
+    }
+ 
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+ 
+        // 1. Tegn City (Bakgrunn)
+        drawCityLayer(backBuildings, 0.2, "#0f172a"); // Fjerne lag
+        drawCityLayer(frontBuildings, 0.5, "#1e293b"); // Nærmere lag
+ 
+        // 2. Tegn Veien
+        ctx.fillStyle = "#334155";
+        ctx.fillRect(0, 340, canvas.width, 60);
+        ctx.strokeStyle = "#fbbf24";
+        ctx.setLineDash([40, 40]);
+        ctx.lineDashOffset = cityOffset % 80;
+        ctx.beginPath(); ctx.moveTo(0, 370); ctx.lineTo(canvas.width, 370); ctx.stroke();
+        ctx.setLineDash([]);
+ 
+        // 3. Tegn Scooter
         ctx.save();
         ctx.translate(scooter.x, scooter.y);
         ctx.rotate(-scooter.tilt);
  
-        // Brett
-        ctx.fillStyle = "#333";
-        ctx.fillRect(0, -10, 60, 8);
- 
-        // Styre
-        ctx.strokeStyle = "#555";
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        ctx.moveTo(60, -10);
-        ctx.lineTo(60, -50);
-        ctx.lineTo(50, -50);
-        ctx.stroke();
+        // Kropp
+        ctx.fillStyle = "#f87171";
+        ctx.fillRect(0, -10, 70, 8); // Brett
+        ctx.fillStyle = "#334155";
+        ctx.fillRect(60, -60, 5, 55); // Styre-stang
+        ctx.fillRect(50, -60, 20, 5); // Håndtak
  
         // Hjul
-        ctx.fillStyle = "#111";
-        ctx.beginPath();
-        ctx.arc(0, 0, 10, 0, Math.PI * 2); // Bakhjul
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(60, 0, 10, 0, Math.PI * 2); // Forhjul
-        ctx.fill();
- 
+        ctx.fillStyle = "#000";
+        ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI*2); ctx.fill(); // Bak
+        ctx.beginPath(); ctx.arc(70, 0, 12, 0, Math.PI*2); ctx.fill(); // Foran
+        
         ctx.restore();
-    }
  
-    function drawRoad() {
-        ctx.fillStyle = "#444";
-        ctx.fillRect(0, 340, canvas.width, 60);
-        
-        ctx.strokeStyle = "#fff";
-        ctx.setLineDash([30, 30]);
-        // Veien beveger seg bare hvis du faktisk gjør en wheelie
-        let roadSpeed = (scooter.tilt > 0) ? (score * 10) : 0;
-        ctx.lineDashOffset = roadSpeed % 60; 
-        
-        ctx.beginPath();
-        ctx.moveTo(0, 370);
-        ctx.lineTo(canvas.width, 370);
-        ctx.stroke();
-    }
- 
-    function gameLoop() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
         update();
-        drawRoad();
-        drawScooter();
-        requestAnimationFrame(gameLoop);
+        requestAnimationFrame(draw);
     }
  
-    gameLoop();
+    draw();
 </script>
 </body>
 </html>
