@@ -1,223 +1,184 @@
 <!DOCTYPE html>
 <html lang="no">
 <head>
-<meta charset="UTF-8">
-<title>City Scooter Pro - Wheelie</title>
-<style>
-    body {
-        margin: 0;
-        background: #0a0a0c;
-        color: #eee;
-        font-family: 'Courier New', Courier, monospace;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        overflow: hidden;
-    }
-    canvas {
-        background: linear-gradient(#020617 0%, #1e1b4b 100%);
-        border: 5px solid #334155;
-        box-shadow: 0 0 40px rgba(0,0,0,0.8);
-        margin-top: 20px;
-    }
-    .interface {
-        text-align: center;
-        padding: 20px;
-        background: #111;
-        border-radius: 0 0 20px 20px;
-        border: 2px solid #222;
-        min-width: 600px;
-    }
-    .controls {
-        color: #94a3b8;
-        font-size: 0.85em;
-        margin-bottom: 10px;
-    }
-    #score { color: #22c55e; font-size: 1.5em; }
-    .btn {
-        display: none;
-        margin-top: 15px;
-        padding: 10px 30px;
-        background: #ef4444;
-        color: white;
-        border: none;
-        border-radius: 5px;
-        cursor: pointer;
-        font-weight: bold;
-        text-transform: uppercase;
-    }
-    .btn:hover { background: #dc2626; }
-</style>
+    <meta charset="UTF-8">
+    <title>Wheelie El-sparkesykkel Spill</title>
+    <style>
+        body {
+            background: #aee2ff;
+            margin: 0;
+            overflow: hidden;
+        }
+        canvas {
+            background: #eef;
+            display: block;
+            margin: 0 auto;
+            border: 2px solid #222;
+        }
+        #info {
+            text-align: center;
+            font-family: Arial, sans-serif;
+            margin: 10px 0;
+        }
+        #speedometer {
+            position: absolute;
+            top: 16px;
+            right: 36px;
+            z-index: 20;
+            background: rgba(247,247,247,0.75);
+            color: #1a374d;
+            font-size: 32px;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            padding: 6px 24px;
+            border-radius: 9px;
+            font-weight: bold;
+            box-shadow: 1px 1px 5px #ccc;
+            letter-spacing: 2px;
+        }
+    </style>
 </head>
 <body>
- 
-<div class="interface">
-    <h1 style="margin:0; letter-spacing: 2px;">SCOOTER CITY</h1>
-    <div class="controls"><b>[ D ]</b> GASS & WHEELIE | <b>[ A ]</b> BREMS</div>
-    <div>Distanse: <span id="score">0</span>m</div>
-    <div id="msg" style="color:#ef4444; font-weight:bold; margin-top:10px; display:none;">WASTED!</div>
-    <button id="restartBtn" class="btn" onclick="resetGame()">Prøv igjen</button>
-</div>
- 
-<canvas id="game" width="800" height="400"></canvas>
- 
-<script>
-    const canvas = document.getElementById("game");
-    const ctx = canvas.getContext("2d");
-    const scoreEl = document.getElementById("score");
-    const msgEl = document.getElementById("msg");
-    const restartBtn = document.getElementById("restartBtn");
- 
-    let score = 0;
-    let speed = 0;
-    let isGameOver = false;
-    let keys = {};
-    let cityOffset = 0;
- 
-    // Generer bygninger en gang
-    const buildings = [];
-    for(let i = 0; i < 25; i++) {
-        buildings.push({
-            x: i * 80 + Math.random() * 50,
-            w: 60 + Math.random() * 100,
-            h: 100 + Math.random() * 250,
-            dist: 0.2 + Math.random() * 0.5, // Ulik dybde
-            shade: Math.floor(Math.random() * 20 + 10)
-        });
-    }
- 
-    let scooter = {
-        x: 200,
-        y: 340,
-        tilt: 0,
-        tiltV: 0,
-        gravity: 0.002,
-        power: 0.004
-    };
- 
-    window.addEventListener("keydown", e => keys[e.code] = true);
-    window.addEventListener("keyup", e => keys[e.code] = false);
- 
-    function resetGame() {
-        score = 0; speed = 0; isGameOver = false;
-        scooter.tilt = 0; scooter.tiltV = 0;
-        msgEl.style.display = "none";
-        restartBtn.style.display = "none";
-        scoreEl.textContent = "0";
-    }
- 
-    function update() {
-        if (isGameOver) return;
- 
-        // Kontroller
-        if (keys["KeyD"]) {
-            speed = Math.min(speed + 0.12, 12); // Øk fart
-            scooter.tiltV += scooter.power;    // Dra opp i wheelie
-        } else if (keys["KeyA"]) {
-            speed = Math.max(speed - 0.3, 0);  // Brems hardt
-            scooter.tiltV -= 0.008;            // Press forhjulet ned
-        } else {
-            speed *= 0.98; // Trillemotstand
-        }
- 
-        // Fysikk og Tyngdekraft
-        if (scooter.tilt > 0) {
-            // Jo mer fart du har, jo mer "stabil" er wheelien (litt enklere å styre)
-            let speedStability = speed * 0.0001;
-            scooter.tiltV += (scooter.tilt * (0.003 - speedStability)); 
-            scooter.tiltV -= scooter.gravity;
-        }
- 
-        scooter.tilt += scooter.tiltV;
-        scooter.tiltV *= 0.95; // Demping
- 
-        // Bakken-kollisjon
-        if (scooter.tilt < 0) {
-            scooter.tilt = 0;
-            scooter.tiltV = 0;
-        }
- 
-        // Sjekk krasj (85 grader bakover)
-        if (scooter.tilt > 1.5) {
-            isGameOver = true;
-            msgEl.style.display = "block";
-            restartBtn.style.display = "inline-block";
-        }
- 
-        // Oppdater avstand
-        if (speed > 0.1) {
-            score += speed / 60;
-            cityOffset += speed;
-            scoreEl.textContent = Math.floor(score);
-        }
-    }
- 
-    function drawCity() {
-        buildings.forEach(b => {
-            // Parallakse-effekt: fjernere ting beveger seg saktere
-            let xPos = (b.x - cityOffset * b.dist) % (canvas.width + 300);
-            if (xPos < -200) b.x += canvas.width + 500;
- 
-            ctx.fillStyle = `rgb(${b.shade}, ${b.shade}, ${b.shade + 10})`;
-            ctx.fillRect(xPos, canvas.height - b.h - 60, b.w, b.h);
- 
-            // Tegn noen lysende vinduer
-            ctx.fillStyle = "rgba(251, 191, 36, 0.3)";
-            for(let j = 0; j < 3; j++) {
-                ctx.fillRect(xPos + b.w/4, canvas.height - b.h + 20 + (j*30), 10, 10);
-            }
-        });
-    }
- 
-    function draw() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
- 
-        drawCity();
- 
-        // Veien
-        ctx.fillStyle = "#111";
-        ctx.fillRect(0, 340, canvas.width, 60);
-        ctx.strokeStyle = "#444";
-        ctx.lineWidth = 2;
-        ctx.setLineDash([50, 50]);
-        ctx.lineDashOffset = cityOffset % 100;
-        ctx.beginPath(); ctx.moveTo(0, 370); ctx.lineTo(canvas.width, 370); ctx.stroke();
-        ctx.setLineDash([]);
- 
-        // Sparkesykkel
-        ctx.save();
-        ctx.translate(scooter.x, scooter.y);
-        ctx.rotate(-scooter.tilt);
- 
-        // Skygge under (når den er i lufta)
-        ctx.fillStyle = "rgba(0,0,0,0.3)";
-        ctx.beginPath();
-        ctx.ellipse(35, 15 + (scooter.tilt * 20), 40, 5, 0, 0, Math.PI * 2);
-        ctx.fill();
- 
-        // Selve sykkelen
-        ctx.fillStyle = "#3b82f6"; // Blå farge
-        ctx.fillRect(0, -8, 70, 8); // Brett
-        
-        ctx.strokeStyle = "#ddd";
-        ctx.lineWidth = 4;
-        ctx.beginPath(); // Styre
-        ctx.moveTo(65, -8); ctx.lineTo(70, -60); ctx.lineTo(55, -60); ctx.stroke();
- 
-        // Hjul med glans
-        ctx.fillStyle = "#000";
-        ctx.beginPath(); ctx.arc(0, 0, 12, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.arc(70, 0, 12, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = "#333";
-        ctx.beginPath(); ctx.arc(-3, -3, 3, 0, Math.PI*2); ctx.fill(); // Refleksjon bakhjul
- 
-        ctx.restore();
- 
-        update();
-        requestAnimationFrame(draw);
-    }
- 
-    draw();
-</script>
+    <div id="info">
+        <strong>Taster:</strong> D = Wheelie | F = Én fot | Pil Høyre/Venstre = Kjør sparkesykkel
+    </div>
+    <div id="speedometer">80 km/t</div>
+    <canvas id="gameCanvas" width="900" height="400"></canvas>
+    <script>
+    window.onload = function() {
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const speedometer = document.getElementById('speedometer');
+        
+        // Fiks hastighet (80 km/t)
+        const VISIBLE_SPEED = 80; // km/t
+        const GAME_PX_PER_FRAME = 12; // Hvor langt scooteren flytter seg for å se rask ut
+
+        let scooter = {
+            x: 120,
+            y: 300,
+            width: 90,
+            height: 24,
+            vx: 0,
+            wheelie: false,
+            oneFoot: false
+        };
+
+        function drawRoad() {
+            ctx.fillStyle = '#bbb';
+            ctx.fillRect(0, 340, canvas.width, 60);
+            ctx.strokeStyle = '#777';
+            ctx.lineWidth = 2;
+            for (let i = 0; i < canvas.width; i += 40) {
+                ctx.beginPath();
+                ctx.moveTo(i, 370);
+                ctx.lineTo(i + 20, 370);
+                ctx.stroke();
+            }
+        }
+
+        function drawScooter() {
+            ctx.save();
+            ctx.translate(scooter.x + scooter.width/2, scooter.y);
+            if (scooter.wheelie) {
+                ctx.rotate(-Math.PI/8);
+            }
+            ctx.translate(-scooter.width/2, 0);
+
+            // Hjulene
+            ctx.fillStyle = "#222";
+            ctx.beginPath();
+            ctx.arc(12, 14, 13, 0, 2 * Math.PI);
+            ctx.fill();
+            if (!scooter.wheelie) {
+                ctx.beginPath();
+                ctx.arc(scooter.width-12, 14, 13, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+
+            // Brettet
+            ctx.fillStyle = "#000";
+            ctx.fillRect(0, 0, scooter.width, scooter.height);
+
+            // Styret
+            ctx.strokeStyle = "#284b63";
+            ctx.lineWidth = 6;
+            ctx.beginPath();
+            ctx.moveTo(scooter.width-6, 0);
+            ctx.lineTo(scooter.width-6, -32);
+            ctx.stroke();
+
+            // Én fot modus
+            if (scooter.oneFoot) {
+                ctx.fillStyle = "#fcb900";
+                ctx.fillRect(scooter.width / 2 - 7, scooter.height+7, 14, 22);
+                ctx.font = '16px Arial';
+                ctx.fillText('👟', scooter.width/2-7, scooter.height+26);
+            }
+
+            ctx.restore();
+        }
+
+        function update() {
+            // Begrens innenfor canvas
+            if (scooter.x + scooter.vx >= 0 && scooter.x + scooter.vx <= canvas.width-scooter.width) {
+                scooter.x += scooter.vx;
+            }
+        }
+
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawRoad();
+            drawScooter();
+
+            // Tegn "80 km/t" på canvas også (hvis du ikke vil bruke speedometer-diven, kommenter vekk neste 7 linjer)
+            /*
+            ctx.font = "bold 32px Arial";
+            ctx.fillStyle = "#1a374d";
+            ctx.textAlign = "right";
+            ctx.globalAlpha = 0.77;
+            ctx.fillText(VISIBLE_SPEED + " km/t", canvas.width-26, 43);
+            ctx.globalAlpha = 1;
+            ctx.textAlign = "left";
+            */
+        }
+
+        function gameLoop() {
+            update();
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+
+        document.addEventListener('keydown', function(e) {
+            if (e.code === "ArrowRight" || e.key === "ArrowRight") {
+                scooter.vx = GAME_PX_PER_FRAME;
+            }
+            if (e.code === "ArrowLeft" || e.key === "ArrowLeft") {
+                scooter.vx = -GAME_PX_PER_FRAME;
+            }
+            if (e.code === "KeyD" || e.key === "d") {
+                scooter.wheelie = true;
+            }
+            if (e.code === "KeyF" || e.key === "f") {
+                scooter.oneFoot = true;
+            }
+        });
+
+        document.addEventListener('keyup', function(e) {
+            if (e.code === "ArrowRight" || e.code === "ArrowLeft" || e.key === "ArrowRight" || e.key === "ArrowLeft") {
+                scooter.vx = 0;
+            }
+            if (e.code === "KeyD" || e.key === "d") {
+                scooter.wheelie = false;
+            }
+            if (e.code === "KeyF" || e.key === "f") {
+                scooter.oneFoot = false;
+            }
+        });
+
+        // Oppdater speedometer-display (kun nødvendig dersom hastigheten endres dynamisk, ikke for fast tall, men vi lar det stå)
+        speedometer.textContent = VISIBLE_SPEED + " km/t";
+        gameLoop();
+    };
+    </script>
 </body>
 </html>
